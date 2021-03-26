@@ -121,3 +121,48 @@ class WasmMultiScriptIdentityTest(WasmIdentityTest):
         """
         itopic = self.topics[0].name
         return [[(itopic, "sou_a")], [(itopic, "sou_b")], [(itopic, "sou_c")]]
+
+
+class WasmMultiInputTopicIdentityTest(WasmIdentityTest):
+    """
+    In this test spec there are three input topics and three coprocessors.
+    Each coprocessor consumes from the same input topic and produces
+    to one output topic, making three materialized topic per script.
+    """
+    topics = (
+        TopicSpec(partition_count=3,
+                  replication_factor=3,
+                  cleanup_policy=TopicSpec.CLEANUP_DELETE),
+        TopicSpec(partition_count=3,
+                  replication_factor=3,
+                  cleanup_policy=TopicSpec.CLEANUP_DELETE),
+        TopicSpec(partition_count=3,
+                  replication_factor=3,
+                  cleanup_policy=TopicSpec.CLEANUP_DELETE),
+    )
+
+    def __init__(self, test_context, num_records=1024, record_size=1024):
+        super(WasmMultiInputTopicIdentityTest,
+              self).__init__(test_context,
+                             num_records=num_records,
+                             record_size=record_size)
+
+    def wasm_test_outputs(self):
+        """
+        The materialized logs:
+        [
+          itopic[0].$script_a_output$,
+          itopic[1].$script_a_output$,
+          itopic[2].$script_a_output$,
+          itopic[0].$script_b_output$,
+          itopic[1].$script_b_output$,
+          itopic[2].$script_b_output$,
+          itopic[0].$script_c_output$,
+          itopic[1].$script_c_output$,
+          itopic[2].$script_c_output$,
+        ]
+        Should exist by tests end and be identical to their respective input logs
+        """
+        return [[(self.topics[0].name, "script_a_output")],
+                [(self.topics[1].name, "script_b_output")],
+                [(self.topics[2].name, "script_c_output")]]

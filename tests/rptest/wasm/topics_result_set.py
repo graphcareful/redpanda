@@ -76,11 +76,6 @@ def materialized_result_set_compare(oset, materialized_set):
     must contain normal topics, while 'materaizlied_set' contains
     materialized_topics
     """
-    if len(oset.rset.keys()) != len(materialized_set.rset.keys()):
-        return False
-    if oset.num_records() != materialized_set.num_records():
-        return False
-
     def strip_topic(bkr):
         bkr.topic = None
         return bkr

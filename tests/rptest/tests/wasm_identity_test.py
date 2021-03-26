@@ -166,3 +166,67 @@ class WasmMultiInputTopicIdentityTest(WasmIdentityTest):
         return [[(self.topics[0].name, "script_a_output")],
                 [(self.topics[1].name, "script_b_output")],
                 [(self.topics[2].name, "script_c_output")]]
+
+
+class WasmAllInputsToAllOutputsIdentityTest(WasmMultiInputTopicIdentityTest):
+    def __init__(self, test_context, num_records=1024, record_size=1024):
+        super(WasmAllInputsToAllOutputsIdentityTest,
+              self).__init__(test_context,
+                             num_records=num_records,
+                             record_size=record_size)
+
+    def wasm_test_outputs(self):
+        """
+        The materialized logs:
+        [
+          itopic[0].$script_a_output$,
+          itopic[1].$script_a_output$,
+          itopic[2].$script_a_output$,
+          itopic[0].$script_b_output$,
+          itopic[1].$script_b_output$,
+          itopic[2].$script_b_output$,
+          itopic[0].$script_c_output$,
+          itopic[1].$script_c_output$,
+          itopic[2].$script_c_output$,
+        ]
+        Should exist by tests end and be identical to their respective input logs.
+
+        This differs from the above because every script is writing to non unique
+        output topics. Therefore this tests the output topic mutex within the
+        script context.
+        """
+        otopic_a = "output_topic_a"
+        otopic_b = "output_topic_b"
+        otopic_c = "output_topic_c"
+        return [[(self.topics[0].name, otopic_a),
+                 (self.topics[0].name, otopic_b),
+                 (self.topics[0].name, otopic_c)],
+                [(self.topics[1].name, otopic_a),
+                 (self.topics[1].name, otopic_b),
+                 (self.topics[1].name, otopic_c)],
+                [(self.topics[2].name, otopic_a),
+                 (self.topics[2].name, otopic_b),
+                 (self.topics[2].name, otopic_c)]]
+
+    def wasm_xfactor(self):
+        """
+        Each script writes to 3 output streams for each input stream
+        """
+        return 3
+
+    @cluster(num_nodes=3)
+    def verify_materialized_topics_test(self):
+        # Cannot compare topics to topics, can only verify # of records
+        input_results, output_results = self._start(self.wasm_input(),
+                                                    self.wasm_test_plan())
+
+        def compare(topic):
+            iis = input_results.filter(lambda x: x.topic == topic)
+            oos = output_results.filter(
+                lambda x: get_source_topic(x.topic) == topic)
+            return iis.num_records() == (oos.num_records() *
+                                         self.wasm_xfactor())
+
+        if not all(compare(topic) for topic in self.topics):
+            raise Exception(
+                "Incorrect number of records observed across topics")

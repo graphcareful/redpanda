@@ -90,3 +90,34 @@ class WasmIdentityTest(WasmTest):
             iresults = input_results.filter(lambda x: x.topic in output_stems)
             if not materialized_result_set_compare(iresults, tresults):
                 raise Exception(f"Set {opts} results weren't as expected")
+
+
+class WasmMultiScriptIdentityTest(WasmIdentityTest):
+    """
+    In this test spec there is one input topic and three coprocessors.
+    Each coprocessor consumes from the same sole input topic and produces
+    to one output topic.
+    """
+    topics = (TopicSpec(partition_count=3,
+                        replication_factor=3,
+                        cleanup_policy=TopicSpec.CLEANUP_DELETE), )
+
+    def __init__(self, test_context, num_records=1024, record_size=1024):
+        super(WasmMultiScriptIdentityTest,
+              self).__init__(test_context,
+                             num_records=num_records,
+                             record_size=record_size)
+
+    def wasm_test_outputs(self):
+        """
+        The materialized logs:
+        [
+          itopic.$script_a_output$,
+          itopic.$script_b_output$,
+          itopic.$script_c_output$,
+        ]
+        Should exist by tests end and be identical to their respective input logs
+
+        """
+        itopic = self.topics[0].name
+        return [[(itopic, "sou_a")], [(itopic, "sou_b")], [(itopic, "sou_c")]]

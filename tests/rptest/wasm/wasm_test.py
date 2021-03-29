@@ -62,6 +62,9 @@ class WasmTest(RedpandaTest):
                                        num_brokers=num_brokers)
         self._rpk_tool = RpkTool(self.redpanda)
         self._build_tool = WasmBuildTool(self._rpk_tool)
+        self._input_consumer = None
+        self._output_consumer = None
+        self._producers = None
 
     def _build_script(self, script):
         # Produce all data
@@ -77,7 +80,7 @@ class WasmTest(RedpandaTest):
 
         return total_output_expected
 
-    def _start(self, topic_spec, scripts):
+    def start(self, topic_spec, scripts):
         all_materialized = all(
             flat_map(
                 lambda x: [is_materialized_topic(x[0]) for x in x.outputs],
@@ -125,25 +128,23 @@ class WasmTest(RedpandaTest):
             to_output_topic_spec(
                 flat_map(lambda script: script.outputs, scripts)))
 
-        producers = []
+        self._producers = []
         for tp_spec, num_records, record_size in topic_spec:
             try:
                 producer = NativeKafkaProducer(self.redpanda.brokers(),
                                                tp_spec.name, num_records,
                                                record_size)
                 producer.start()
-                producers.append(producer)
+                self._producers.append(producer)
             except Exception as e:
                 self.logger.error(f"Failed to create NativeKafkaProducer: {e}")
                 raise
 
-        input_consumer = None
-        output_consumer = None
         try:
-            input_consumer = NativeKafkaConsumer(self.redpanda.brokers(),
-                                                 input_tps, total_inputs)
-            output_consumer = NativeKafkaConsumer(self.redpanda.brokers(),
-                                                  output_tps, total_outputs)
+            self._input_consumer = NativeKafkaConsumer(self.redpanda.brokers(),
+                                                       input_tps, total_inputs)
+            self._output_consumer = NativeKafkaConsumer(
+                self.redpanda.brokers(), output_tps, total_outputs)
         except Exception as e:
             self.logger.error(f"Failed to create NativeKafkaConsumer: {e}")
             raise
@@ -151,34 +152,57 @@ class WasmTest(RedpandaTest):
         self.logger.info(
             f"Waiting for {total_inputs} input records and {total_outputs}"
             " result records")
-        input_consumer.start()
-        output_consumer.start()
+        self._input_consumer.start()
+        self._output_consumer.start()
 
+    def wait_on_results(self):
         def all_done():
             # Uncomment to periodically see the amt of data read
             # self.logger.info("Input: %d" %
-            #                  input_consumer.results.num_records())
+            #                  self._input_consumer.results.num_records())
             # self.logger.info("Output: %d" %
-            #                  output_consumer.results.num_records())
-            return input_consumer.is_finished() and \
-                output_consumer.is_finished()
+            #                  self._output_consumer.results.num_records())
+            batch_total = self._output_consumer.results.num_records()
+            if batch_total > 0:
+                self.records_recieved(batch_total)
+
+            return self._input_consumer.is_finished() and \
+                self._output_consumer.is_finished()
 
         timeout, backoff = self.wasm_test_timeout()
         wait_until(all_done, timeout_sec=timeout, backoff_sec=backoff)
         try:
-            input_consumer.join()
-            output_consumer.join()
-            [x.join() for x in producers]
+            self._input_consumer.join()
+            self._output_consumer.join()
+            [x.join() for x in self._producers]
         except Exception as e:
             self.logger.error("Exception occured in background thread: {e}")
             raise e
 
-        self.logger.info(
-            f"Consumed {input_consumer.results.num_records()} input"
-            f" records/expected {total_inputs} and"
-            f" {output_consumer.results.num_records()} result records/expected"
-            f" {total_outputs}")
-        return (input_consumer.results, output_consumer.results)
+        input_consumed = self._input_consumer.results.num_records()
+        output_consumed = self._output_consumer.results.num_records()
+        self.logger.info(f"Consumed {input_consumed} input"
+                         f" records and"
+                         f" {output_consumed} result records")
+
+        input_expected = self._input_consumer._num_records
+        output_expected = self._output_consumer._num_records
+        if input_consumed < input_expected:
+            raise Exception(
+                f"Consumed {input_consumed} expected {input_expected} input records"
+            )
+        if output_consumed < output_expected:
+            raise Exception(
+                f"Consumed {output_consumed} expected {output_expected} output records"
+            )
+
+        return (self._input_consumer.results, self._output_consumer.results)
+
+    def records_recieved(self, output_recieved):
+        """
+        Called when a traunch of records has been returned from consumers
+        """
+        pass
 
     def wasm_test_timeout(self):
         """

@@ -8,6 +8,7 @@
 # by the Apache License, Version 2.0
 
 import os
+import time
 import uuid
 
 from kafka import TopicPartition
@@ -79,6 +80,18 @@ class WasmTest(RedpandaTest):
             script.get_artifact(self._build_tool.work_dir), "ducktape")
 
         return total_output_expected
+
+    def restart_wasm_engine(self, node, timeout=1):
+        self.logger.info(
+            f"Begin manually triggered restart of wasm engine on node {node}")
+        node.account.kill_process("bin/node", clean_shutdown=False)
+        time.sleep(timeout)
+        self.redpanda.start_wasm_engine(node)
+
+    def restart_redpanda(self, node, timeout=1):
+        self.logger.info(
+            f"Begin manually triggered restart of redpanda on node {node}")
+        self.redpanda.restart_nodes(node)
 
     def start(self, topic_spec, scripts):
         all_materialized = all(

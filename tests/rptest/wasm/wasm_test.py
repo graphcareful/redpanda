@@ -8,6 +8,7 @@
 # by the Apache License, Version 2.0
 
 import os
+import time
 import uuid
 
 from kafka import TopicPartition
@@ -73,6 +74,20 @@ class WasmTest(RedpandaTest):
         # Deploy coprocessor
         self._rpk_tool.wasm_deploy(
             script.get_artifact(self._build_tool.work_dir), "ducktape")
+
+    def restart_wasm_engine(self, node):
+        self.logger.info(
+            f"Begin manually triggered restart of wasm engine on node {node}")
+        node.account.kill_process("bin/node", clean_shutdown=False)
+        # TODO: Write a test where this timeout is 1 second, this is within
+        # the heartbeat window, currently this poses an issue
+        time.sleep(3)
+        self.redpanda.start_wasm_engine(node)
+
+    def restart_redpanda(self, node):
+        self.logger.info(
+            f"Begin manually triggered restart of redpanda on node {node}")
+        self.redpanda.restart_nodes(node)
 
     def start(self, topic_spec, scripts, xfactor):
         def to_output_topic_spec(output_topics):

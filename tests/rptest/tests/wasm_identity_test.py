@@ -76,12 +76,16 @@ class WasmIdentityTest(WasmTest):
             for opts in self.wasm_test_outputs()
         ]
 
+    def verify_results(self):
+        """ How to interpret PASS/FAIL between two sets of returned results"""
+        return materialized_result_set_compare
+
     @cluster(num_nodes=3)
     def verify_materialized_topics_test(self):
         """
-        Entry point for all tests, asynchronously we perform the following tasks:
+        Entry point for all tests, asynchronously we perform the following:
         1. Scripts are built & deployed
-        2. Consumers are set-up listening for expected num records on output topics
+        2. Consumers are set-up listening for expected records on output topics
         3. Producers set-up and begin producing onto input topics
         4. When finished, perform assertions in this method
         """
@@ -94,7 +98,7 @@ class WasmIdentityTest(WasmTest):
             output_stems = set([src for src, _ in opts])
             tresults = output_results.filter(lambda x: x.topic in outputs)
             iresults = input_results.filter(lambda x: x.topic in output_stems)
-            if not materialized_result_set_compare(iresults, tresults):
+            if not self.verify_results()(iresults, tresults):
                 raise Exception(f"Set {opts} results weren't as expected")
 
 

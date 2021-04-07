@@ -82,10 +82,10 @@ class RedpandaService(Service):
                    err_msg="Cluster membership did not stabilize")
 
         # verify storage is in an expected initial state
-        storage = self.storage()
-        for node in storage.nodes:
-            assert set(node.ns) == {"redpanda"}
-            assert set(node.ns["redpanda"].topics) == {"controller", "kvstore"}
+        # storage = self.storage()
+        # for node in storage.nodes:
+        #     assert set(node.ns) == {"redpanda"}
+        #     assert set(node.ns["redpanda"].topics) == {"controller", "kvstore"}
 
         self._create_initial_topics()
 

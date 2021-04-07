@@ -115,7 +115,6 @@ tasks:
     deps:
     - :dev:install-docker-compose
     - :dev:start-podman-socket-service
-    - build-test-docker-image
     dir: '{{.SRC_DIR}}/tests/docker/'
     env:
       BUILD_ROOT: '{{.BUILD_ROOT}}'
@@ -129,9 +128,8 @@ tasks:
     deps:
     - set-aio-max
     - start-compose-cluster
-    - build-java-test-programs
     vars:
-      DUCKTAPE_ARGS: '{{default "--exit-first tests/rptest/test_suite_quick.yml" .DUCKTAPE_ARGS}}'
+      DUCKTAPE_ARGS: '{{default "--exit-first tests/rptest/tests/wasm_redpanda_failure_recovery_test.py" .DUCKTAPE_ARGS}}'
       RP_INSTALL_DIR_DEFAULT: '{{.BUILD_DIR}}'
       RP_INSTALL_DIR: '{{default .RP_INSTALL_DIR_DEFAULT .RP_INSTALL_DIR}}'
     env:

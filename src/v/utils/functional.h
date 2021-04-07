@@ -12,8 +12,14 @@
 #pragma once
 #include "utils/concepts-enabled.h"
 
+#include <seastar/core/sharded.hh>
+
 #include <functional>
 #include <optional>
+#include <variant>
+
+template<class T, class U>
+using either = std::variant<T, U>;
 
 // clang-format off
 CONCEPT(
